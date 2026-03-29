@@ -8,9 +8,11 @@
 
 **Макро-задача:** Multi-label классификация — предсказание вероятности владения 41 финансовым продуктом банка на основе обезличенных данных клиентов.
 
-**Финальный результат:** `Macro OOF AUC = 0.8386` (rank blend на валидации)
+**Финальный результат:** `Macro OOF AUC = 0.8328` (rank blend на валидации)
 
 **Статус:** ✅ Решение завершено, пайплайн воспроизводим
+
+**Вдохновлялись**  https://github.com/d-ulybin/data_fusion_track_2 (null_pattern_pca), https://github.com/artyerokhin/datafusion2026_public_task2 (идея стекинга)
 
 ---
 
@@ -196,14 +198,6 @@
 | **5-Seed Averaging** | Стабильность test | Усреднение по 5 сидам на тестовой выборке |
 | **Category code + freq encoding** | Для CatBoost | Code как нативные cat_features + частотное кодирование |
 
-### ⚠️ Ключевые ограничения работы с Kaggle
-
-| Ограничение | Как решали |
-| :--- | :--- |
-| **16 ГБ RAM** | Polars lazy evaluation, type downcasting (Float64→Float32), `gc.collect()` после каждого таргета |
-| **GPU Memory** | `max_bin=63` в LightGBM, batch processing |
-| **Время выполнения** | 8 ноутбуков, каждый запускается отдельно, артефакты сохраняются в parquet |
-
 ### 💡 Инсайты
 
 1. **Модель L1 должна быть максимально простой и непереобученной** — это принципиально для стекинга. Сильная L1 убивает разнообразие мета-признаков.
@@ -215,52 +209,74 @@
 
 ## 5. Структура репозитория
 
+### Скрипты (основной пайплайн)
+
 ```
 cyberpolka_pupsiki/
-├── 00-schema-and-folds2803.ipynb              # Схема данных, MultilabelStratifiedKFold (5 фолдов)
-├── 01-feature-selection-41targets2803.ipynb    # Отбор фичей: top700 / top300 по LGBM gain
-├── 02-build-base-features2803.ipynb            # Сборка базовых фичей (~750): encoding, nulls, stats
-├── 03-build-meta-oof-lgbm-memory-safe2803.ipynb # L1 OOF: слабый LightGBM → 41 мета-признак
-├── 04-build-global-aggs-and-null-features2803.ipynb # Глобальные агрегации (7) + Null SVD (20)
-├── 06-train-final-catboost-meta.ipynb          # L2 CatBoost: сильная модель + 5-seed averaging
-├── README.md                                   # Этот файл
-└── data/                                       # Артефакты (не включены в git)
+├── 00_schema_and_folds.py          # Схема данных, MultilabelStratifiedKFold (5 фолдов)
+├── 01_feature_selection.py         # Отбор фичей: top700 / top300 по LGBM gain
+├── 02_build_base_features.py       # Сборка базовых фичей (~750): encoding, nulls, stats
+├── 03_build_meta_oof_lgbm.py       # L1 OOF: слабый LightGBM → 41 мета-признак
+├── 04_build_global_aggs_null_svd.py  # Глобальные агрегации (7) + Null SVD (20)
+├── 05_train_final_lgbm_meta.py     # L2 LightGBM: сильная модель + 5-seed averaging
+├── 06_train_final_catboost_meta.py # L2 CatBoost: сильная модель, OOF + test
+├── 07_rank_blend.py                # Rank blend LGBM(65%) + CatBoost(35%) → submission
+├── README.md                       # Этот файл
+└── prepared/                       # Артефакты (создаётся автоматически)
+    └── artifacts/
+        ├── config/                 # folds.parquet, target_cols.json, schema.json
+        ├── features/               # train/test_base_features.parquet, base_feature_cols.json
+        ├── meta/                   # l1_lgbm_oof.parquet, l1_lgbm_test.parquet
+        ├── aggs/                   # global_aggs.parquet, null_svd.parquet
+        ├── preds/                  # final_lgbm_*.parquet, final_catboost_*.parquet
+        ├── logs/                   # scores, summaries
+        └── submission/             # submission_RANK_BLEND.parquet
 ```
 
-**Дополнительные ноутбуки (vika/):**
+### Исходные ноутбуки (Kaggle)
 
 ```
+cyberpolka_pupsiki/
+├── 00-schema-and-folds2803.ipynb
+├── 01-feature-selection-41targets2803.ipynb
+├── 02-build-base-features2803.ipynb
+├── 03-build-meta-oof-lgbm-memory-safe2803.ipynb
+├── 04-build-global-aggs-and-null-features2803.ipynb
+└── 06-train-final-catboost-meta.ipynb
+
 vika/
-├── 00-schema-and-folds.ipynb                   # Инициализация схемы
+├── 00-schema-and-folds.ipynb
 ├── 01-feature-selection-41targets-randomsample.ipynb
 ├── 02-build-base-features.ipynb
-├── 03-build-meta-oof-5fold-cuda-safe.ipynb     # L1 OOF (CUDA-версия)
-├── 03-build-meta-oof-lgbm-memory-safe.ipynb    # L1 OOF (memory-safe версия)
+├── 03-build-meta-oof-5fold-cuda-safe.ipynb
+├── 03-build-meta-oof-lgbm-memory-safe.ipynb
 ├── 04-build-global-aggs-and-null-features-train-test.ipynb
-├── 05-train-final-lgbm-meta.ipynb              # L2 LightGBM: сильная модель
-├── 06-train-final-catboost-meta.ipynb          # L2 CatBoost: сильная модель
-├── 06-nn-embeddings-multi-task.ipynb           # Эксперимент: NN-эмбеддинги
-└── 07-rank-blend.ipynb                         # Финальный rank blend → 0.8386
+├── 05-train-final-lgbm-meta.ipynb
+├── 06-train-final-catboost-meta.ipynb
+├── 06-nn-embeddings-multi-task.ipynb
+└── 07-rank-blend.ipynb
 ```
 
 ---
 
 ## 6. Инструкция по запуску
 
-Решение предназначено для запуска на **Kaggle Notebooks** (GPU T4/P100). Каждый ноутбук запускается последовательно, артефакты передаются через Kaggle Datasets.
+Решение можно запустить как набор `.py`-скриптов последовательно. Данные (parquet-файлы) должны лежать в текущей директории.
 
 ### Порядок запуска
 
+```bash
+python 00_schema_and_folds.py          # → folds.parquet, target_cols.json, schema.json
+python 01_feature_selection.py         # → top700/top300 feature lists
+python 02_build_base_features.py       # → train_base_features.parquet, test_base_features.parquet
+python 03_build_meta_oof_lgbm.py       # → l1_lgbm_oof.parquet, l1_lgbm_test.parquet
+python 04_build_global_aggs_null_svd.py  # → train/test_global_aggs.parquet, null_svd features
+python 05_train_final_lgbm_meta.py     # → final_lgbm_oof.parquet, final_lgbm_test.parquet
+python 06_train_final_catboost_meta.py # → final_catboost_oof.parquet, final_catboost_test.parquet
+python 07_rank_blend.py                # → submission_RANK_BLEND.parquet (Macro OOF AUC = 0.8386)
 ```
-1. 00-schema-and-folds          → folds.parquet, target_cols.json, schema.json
-2. 01-feature-selection          → top700/top300 feature lists
-3. 02-build-base-features        → train_base_features.parquet, test_base_features.parquet
-4. 03-build-meta-oof-lgbm       → l1_lgbm_oof.parquet, l1_lgbm_test.parquet
-5. 04-build-global-aggs         → train/test_global_aggs.parquet, null_svd features
-6. 05-train-final-lgbm-meta     → final_lgbm_oof.parquet, final_lgbm_test.parquet
-7. 06-train-final-catboost-meta → final_catboost_oof.parquet, final_catboost_test.parquet
-8. 07-rank-blend                → submission_RANK_BLEND.parquet (Macro OOF AUC = 0.8386)
-```
+
+Все промежуточные артефакты сохраняются в `prepared/artifacts/`.
 
 ### Данные
 
