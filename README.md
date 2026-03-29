@@ -1,6 +1,10 @@
 # 🏦 Data Fusion Contest 2026 — Задача 2 «Киберполка»
 
-### Команда: **cyberpolka_pupsiki**
+### Команда: **cyberpolka_pupsiki** 
+**Авторы** [Gentuchka](github.com/Gentuchka), [Svetankova](https://github.com/Svetankova)
+
+
+
 
 **Макро-задача:** Multi-label классификация — предсказание вероятности владения 41 финансовым продуктом банка на основе обезличенных данных клиентов.
 
